@@ -29,25 +29,29 @@ const static float OBSTACLE_RADIUS = 1.5f;
 /* Konstanta PI */
 const static float pi = 3.141592653589793;
 
-
 /* Promenljive koje cuvaju sirinu i visinu prozora */
 static int window_width, window_height;
-
 /* Indikator da li je animacija pokrenuta */
 static int animation_running = 0;
+/* Identifikator teksture */
+static GLuint texture_id[3];
+/* Promenljiva koja cuva proteklo vreme od pocetka prikazivanja poruke o komandama */
+static int message_time = 0;
+/* Indikator da li treba da se prikaze pocetni ekran */
+static int show_start_screen = 1;
+/* Indikator da li treba da se prikaze zavrsni ekran */
+static int show_end_screen = 0;
+/* Promenljiva koja cuva rezultat */
+static int score = 0;
 
 /* Parametar animacije krila */
 static float player_wing_anim_param;
 /* Indikator u kom smeru se menja ugao krila */
 static int player_wing_ind = 1;
-
 /* Pozicija igraca na Y osi */
 static float player_ypos = 0;
 /* Bafer za povecanje pozicije igraca na Y osi prilikom skoka radi gladje animacije  */
 static float player_yinc = 0;
-
-/* Identifikator teksture */
-static GLuint texture_id[3];
 
 /* Promenljiva koja cuva poziciju prvog para prepreki */
 static float obstacle_zpos = -9.5f;
@@ -61,17 +65,7 @@ static int first_obstacle_passed_ind = 0;
 static int old_obstacle_gap;
 static int old_obstacle_gap_random_param;
 
-/* Promenljiva koja cuva proteklo vreme od pocetka prikazivanja poruke o komandama */
-static int message_time = 0;
-/* Indikator da li treba da se prikaze pocetni ekran */
-static int show_start_screen = 1;
-/* Indikator da li treba da se prikaze zavrsni ekran */
-static int show_end_screen = 0;
-
-/* Promenljiva koja cuva rezultat */
-static int score = 0;
-
-/* Prototipi funkcija koje se prosledjuju glut-u */
+/* Prototipi funkcija koje se prosledjuju GLUT-u */
 static void on_reshape(int width, int height);
 static void on_display(void);
 static void on_timer(int value);
@@ -88,48 +82,49 @@ static void draw_obstacle_pair(float zpos, int random_placement_param, int addit
 /* Prototip funkcije za crtanje pozadine */
 static void draw_background_image(void);
 /* Prototip funkcije za ispisivanje teksta na odredjenoj lokaciji */
-static void draw_text(char* text, float posx, float posy, float R, float G, float B);
+static void draw_text(char* text, float posx, float posy);
 
 int main(int argc, char *argv[])
 {
+    /* Inicializuje se GLUT i postavljaju se parametri crtanja */
 	glutInit(&argc, argv);
     glutInitDisplayMode(GLUT_RGB | GLUT_DEPTH | GLUT_DOUBLE);
 
+    /* Postavlja se rezolucija, pozicija i naslov prozora */
     glutInitWindowSize(800, 600);
     glutInitWindowPosition(100, 100);
     glutCreateWindow("FlappyBird3D");
 
+    /* Postavljaju se callback funkcije */
     glutKeyboardFunc(on_keyboard);
     glutReshapeFunc(on_reshape);
     glutDisplayFunc(on_display);
 
-    glClearColor(0, 0, 0, 0);
-    glEnable(GL_DEPTH_TEST);
-
+    /* Poziva se funkcija za inicializaciju OpenGL-a */
     initialize();
 
+    /* Ulazi se u glavnu petlju */
     glutMainLoop();
 
     return 0;
 }
 
-static void on_reshape(int width, int height)
-{
-    /* Prilikom promene velicine prozora pamte se nova sirina i visina prozora */
-    window_width = width;
-    window_height = height;
-}
-
 static void initialize(void)
 {
+    /* Postavlja se crna boja za ciscenje prozora i pali se testiranje dubine prilikom iscrtavanja */
+    glClearColor(0, 0, 0, 0);
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_CULL_FACE);
+
     /* Podesava se osvetljenje */
     GLfloat light_position[] = { 1, 1, 1, 0 };
-    GLfloat light_ambient[] = { 0.3, 0.3, 0.3, 1 };
-    GLfloat light_diffuse[] = { 0.7, 0.7, 0.7, 1 };
+    GLfloat light_ambient[] = { 0.35, 0.35, 0.35, 1 };
+    GLfloat light_diffuse[] = { 0.8, 0.8, 0.8, 1 };
     GLfloat light_specular[] = { 0.9, 0.9, 0.9, 1 };
 
     /* Pali se osvetljenje */
     glEnable(GL_LIGHTING);
+    /* Podesavju se parametri i pali svetlo */
     glEnable(GL_LIGHT0);
     glLightfv(GL_LIGHT0, GL_POSITION, light_position);
     glLightfv(GL_LIGHT0, GL_AMBIENT, light_ambient);
@@ -146,11 +141,11 @@ static void initialize(void)
     glEnable(GL_TEXTURE_2D);
     glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
 
-    /* Inicijalizuje se objekat Image i ucitava se tekstura */
+    /* Inicijalizuje se objekat Image i ucitava se pozadinska tekstura */
     Image * image = image_init(0, 0);
     image_read(image, "resources/sky.bmp");
 
-    /* Generise se identifikator teksture */
+    /* Generisu se identifikatori tekstura */
     glGenTextures(3, texture_id);
 
     /* Bajnduje se tekstura za pozadinu i postavljaju se njeni parametri */
@@ -191,6 +186,13 @@ static void initialize(void)
     image_done(image);
 }
 
+static void on_reshape(int width, int height)
+{
+    /* Prilikom promene velicine prozora pamte se nova sirina i visina prozora */
+    window_width = width;
+    window_height = height;
+}
+
 static void on_display(void)
 {
     /* Cisti se prethodni sadrzaj prozora */
@@ -221,7 +223,7 @@ static void on_display(void)
         /* Crta se igrac */
         draw_player();
 
-        /* Crtaju sve tri prepreke na odgovarajucim razdaljinama */
+        /* Crtaju sve tri para prepreka na odgovarajucim razdaljinama */
         int i;
         for(i = 0; i < 3; ++i)
             draw_obstacle_pair(obstacle_zpos - i * OBSTACLE_DISTANCE, obstacle_gaps[i], obstacle_gaps_random_param[i]);
@@ -230,7 +232,7 @@ static void on_display(void)
         if(first_obstacle_passed_ind && score > 1)
             draw_obstacle_pair(obstacle_zpos + OBSTACLE_DISTANCE, old_obstacle_gap, old_obstacle_gap_random_param);
 
-        /* Crta se tekst ako je nije vise na startnom ekranu */
+        /* Crta se tekst ako se ne prikazuje startni ekran */
         if(!show_start_screen)
         {
             /* Cisti se bafer dubine da bi se tekst iscrtao preko svega */
@@ -239,25 +241,25 @@ static void on_display(void)
             /* Priprema se string i ispisuje se dosadasnji rezultat */
             char buffer[50];
             sprintf(buffer, "SCORE: %d", score);
-            draw_text(buffer, -1, -8.5, 1, 1, 1);
+            draw_text(buffer, -1, -8.5);
 
             /* Priprema se i ispisuje poruka o komanda ako treba */
             if(message_time < 1000)
             {
                 sprintf(buffer, "PRESS [SPACE] TO JUMP");
-                draw_text(buffer, -3.5, -4, 1, 1, 1);
+                draw_text(buffer, -3.5, -4);
                 sprintf(buffer, "PRESS [ESC] TO QUIT");
-                draw_text(buffer, -3.1, -5, 1, 1, 1);
+                draw_text(buffer, -3.1, -5);
             }
         }
     }
-    /* Ako se prikazuje zavrsni ekran, onda ispisujemo ostvareni rezultat */
+    /* Ako se prikazuje zavrsni ekran, onda se ispisuje ostvareni rezultat */
     else
     {
         /* Priprema se string i ispisuje se konacni rezultat */
         char buffer[50];
         sprintf(buffer, "%d POINTS", score);
-        draw_text(buffer, -1.25, -3, 1, 1, 1);
+        draw_text(buffer, -1.25, -3);
     }
 
     /* Salje se nova slika na ekran */
@@ -273,8 +275,10 @@ static void on_timer(int value)
     /* Proverava se da li je igrac udario u donju ili gornju ivicu prozora */
     if(player_ypos >= PLAYER_MAX_YPOS || player_ypos <= PLAYER_MIN_YPOS)
     {
+        /* Stopira se animacija i postavlja se fleg da se prikaze zavrsni ekran */
         animation_running = 0;
         show_end_screen = 1;
+        /* Forsira se ponovno iscrtavanje ekrana da bi se iscrtao zavrsni ekran */
         glutPostRedisplay();
     }
 
@@ -283,20 +287,23 @@ static void on_timer(int value)
 
     /* Proverava se kolizija sa centralnim od tri para prepreka */
     if(((player_ypos >= OBSTACLE_UPPER_YPOS - OBSTACLE_HEIGHT - obstacle_gaps[first_obstacle_passed_ind] - 1) 
-        || (player_ypos <= OBSTACLE_LOWER_YPOS + OBSTACLE_HEIGHT - obstacle_gaps[first_obstacle_passed_ind] - obstacle_gaps_random_param[first_obstacle_passed_ind] + 1)) && (obstacle_zpos - first_obstacle_passed_ind * OBSTACLE_DISTANCE - 1 <= 1.5 && obstacle_zpos - first_obstacle_passed_ind * OBSTACLE_DISTANCE + 1 >= -1.5))
-        {
-            animation_running = 0;
-            show_end_screen = 1;
-            glutPostRedisplay();
-        }
+        || (player_ypos <= OBSTACLE_LOWER_YPOS + OBSTACLE_HEIGHT - obstacle_gaps[first_obstacle_passed_ind] - obstacle_gaps_random_param[first_obstacle_passed_ind] + 1))
+            && (obstacle_zpos - first_obstacle_passed_ind * OBSTACLE_DISTANCE - 1 <= OBSTACLE_RADIUS && obstacle_zpos - first_obstacle_passed_ind * OBSTACLE_DISTANCE + 1 >= -OBSTACLE_RADIUS))
+    {
+        /* Stopira se animacija i postavlja se fleg da se prikaze zavrsni ekran */
+        animation_running = 0;
+        show_end_screen = 1;
+        /* Forsira se ponovno iscrtavanje ekrana da bi se iscrtao zavrsni ekran */
+        glutPostRedisplay();
+    }
 
-
+    /* Ako je animacija pokrenuta, azuriraju se parametri igre i poziva se iscrtavanje */
     if(animation_running)
     {
         /* Azurira se parametar animacije krila u odgovarajucem smeru */
         player_wing_anim_param += player_wing_ind * 24;
 
-        /* Azurira se Y pozicija igraca tako sto konstantno pada za 0.3 a uvecava se za vrednost trenutnog bafera */
+        /* Azurira se pozicija na Y osi igraca tako sto konstantno pada za 0.3 a uvecava se za vrednost trenutnog bafera */
         player_ypos = player_ypos - 0.3f + player_yinc;
         if(player_yinc > 0)
         	player_yinc -= 0.2f;
@@ -316,6 +323,7 @@ static void on_timer(int value)
             /* Uvecava se rezultat */
             score++;
 
+            /* Pamte se parametri prvog para prepreka */
             old_obstacle_gap = obstacle_gaps[0];
             old_obstacle_gap_random_param = obstacle_gaps_random_param[0];
 
@@ -351,56 +359,57 @@ static void on_timer(int value)
 
 static void on_keyboard(unsigned char key, int x, int y)
 {
-    switch (key) {
-    case 27:
-        /* Na ESC se zavrsava program */
-        exit(0);
-        break;
-    case ' ':
-    	/* Na SPACE se skace povecavanjem bafera za visinu skoka */
-        if(animation_running == 1)
-            player_yinc += PLAYER_JUMP_HEIGHT;
-        break;
-    case 13:
-        /* Na ENTER se postavljaju svi parametri na pocetnu vrednost i pokrece se igra ako nije vec pokrenuta */
-        if(!animation_running)
-        {
-            /* Pokrece se igra */
-            animation_running = 1;
-
-            /* Iskljucuje se pocetni ekran */
-            show_start_screen = 0;
-
-            /* Iskljucuje se zavrsni ekran */
-            show_end_screen = 0;
-
-            /* Postavljaju se parametri igre na pocetne vrednost */
-            player_ypos = 0;
-            player_yinc = 0;
-            player_wing_anim_param = 0.0f;
-            obstacle_zpos = -9.5;
-            first_obstacle_passed_ind = 0;
-            int i;
-            for(i = 1; i < 3; ++i)
+    switch (key)
+    {
+        case 27:
+            /* Na ESC se zavrsava program */
+            exit(0);
+            break;
+        case ' ':
+        	/* Na SPACE se skace povecavanjem bafera za visinu skoka */
+            if(animation_running == 1)
+                player_yinc += PLAYER_JUMP_HEIGHT;
+            break;
+        case 13:
+            /* Na ENTER se postavljaju svi parametri na pocetnu vrednost i pokrece se igra ako nije vec pokrenuta */
+            if(!animation_running)
             {
-                obstacle_gaps[i] = rand() % 4;
-                obstacle_gaps_random_param[i] = rand() % 3;
-                if(rand() % 2) 
-                    obstacle_gaps[i] = -obstacle_gaps[i];
-                if(rand() % 2)
-                    obstacle_gaps_random_param[i] = -obstacle_gaps_random_param[i];
+                /* Pokrece se igra */
+                animation_running = 1;
+
+                /* Iskljucuje se pocetni ekran */
+                show_start_screen = 0;
+
+                /* Iskljucuje se zavrsni ekran */
+                show_end_screen = 0;
+
+                /* Postavljaju se parametri igre na pocetne vrednost */
+                player_ypos = 0;
+                player_yinc = 0;
+                player_wing_anim_param = 0.0f;
+                obstacle_zpos = -9.5;
+                first_obstacle_passed_ind = 0;
+                int i;
+                for(i = 1; i < 3; ++i)
+                {
+                    obstacle_gaps[i] = rand() % 4;
+                    obstacle_gaps_random_param[i] = rand() % 3;
+                    if(rand() % 2) 
+                        obstacle_gaps[i] = -obstacle_gaps[i];
+                    if(rand() % 2)
+                        obstacle_gaps_random_param[i] = -obstacle_gaps_random_param[i];
+                }
+                score = 0;
+                message_time = 0;
+
+                /* Postavljaju se parametri prvog para prepreka na 0 tako da se ocuva kontinuitet sa pocetnim ekranom */
+                obstacle_gaps[0] = 0;
+                obstacle_gaps_random_param[0] = 0;
+
+                /* Pokrece se tajmer */
+                glutTimerFunc(35, on_timer, 0);
             }
-            score = 0;
-            message_time = 0;
-
-            /* Postavljaju se parametri prvog para prepreka na 0 tako da se ocuva kontinuitet sa pocetnim ekranom */
-            obstacle_gaps[0] = 0;
-            obstacle_gaps_random_param[0] = 0;
-
-            /* Pokrece se tajmer */
-            glutTimerFunc(35, on_timer, 0);
-        }
-        break;
+            break;
     }
 }
 
@@ -474,7 +483,9 @@ static void draw_player(void)
 
 static void draw_obstacle(int orientation, int height)
 {
+    /* Brojacka promenljiva */
     int i = 0;
+    /* Promenljiva koja cuva ugao prilikom crtanja */
     float angle = 0;
 
     /* Crta se prepreka kao zeleni pravougaonik iz dva dela */
@@ -485,10 +496,10 @@ static void draw_obstacle(int orientation, int height)
             for (i = 0; i <= OBSTACLE_CYLINDER_SEGMENTS; i++) {
                 angle = i * (2 * pi / OBSTACLE_CYLINDER_SEGMENTS);
 
-                /* Definisemo normalu povrsi */
+                /* Definise se normala */
                 glNormal3f(cos(angle), 0, sin(angle));
 
-                /* Definisemo koordinate tacaka */
+                /* Definisu se koordinate tacaka */
                 glVertex3f(OBSTACLE_RADIUS * cos(angle), 0, OBSTACLE_RADIUS * sin(angle));
                 glVertex3f(OBSTACLE_RADIUS * cos(angle), height - 1, OBSTACLE_RADIUS * sin(angle));
             }
@@ -498,29 +509,37 @@ static void draw_obstacle(int orientation, int height)
         glTranslatef(0, height - 1, 0);
         glColor3f(0.180, 0.545, 0.341);
         glBegin(GL_TRIANGLE_STRIP);
-            for (i = 0; i <= OBSTACLE_CYLINDER_SEGMENTS; i++) {
+            for (i = 0; i <= OBSTACLE_CYLINDER_SEGMENTS; i++)
+            {
                 angle = i * (2 * pi / OBSTACLE_CYLINDER_SEGMENTS);
 
-                /* Definisemo normalu povrsi */
+                /* Definise se normala */
                 glNormal3f(cos(angle), 0, sin(angle));
 
-                /* Definisemo koordinate tacaka */
+                /* Definisu se koordinate tacaka */
                 glVertex3f(OBSTACLE_RADIUS * cos(angle), 0, OBSTACLE_RADIUS * sin(angle));
                 glVertex3f(OBSTACLE_RADIUS * cos(angle), 1, OBSTACLE_RADIUS * sin(angle));
             }
         glEnd();
 
-        /* Poklopac gornjeg pravougaonika */
+        /* Poklopac tamnijeg pravougaonika */
         glTranslatef(0, 1, 0);
+        glRotatef(180, 1, 0, 0);
+
+        /* Orientacija se izracunava kao znak parametra orientation */
+        int orient = (orientation > 0) - (orientation < 0);
+
         glBegin(GL_TRIANGLE_FAN);
+            glNormal3f(0, orient, 0);
             glVertex3f(0, 0, 0);
-            for (i = 0; i <= OBSTACLE_CYLINDER_SEGMENTS; i++) {
+            for (i = 0; i <= OBSTACLE_CYLINDER_SEGMENTS; i++)
+            {
                 angle = i * (2 * pi / OBSTACLE_CYLINDER_SEGMENTS);
 
-                /* Definisemo normalu povrsi, Y normalu izracunavamo kao znak parametra orientation */
-                glNormal3f(cos(angle), (orientation > 0) - (orientation < 0), sin(angle));
+                /* Postavlja se normala */
+                glNormal3f(OBSTACLE_RADIUS * cos(angle), orient, OBSTACLE_RADIUS * sin(angle));
 
-                /* Definisemo koordinate tacaka */
+                /* Definisu se koordinate tacaka */
                 glVertex3f(OBSTACLE_RADIUS * cos(angle), 0, OBSTACLE_RADIUS * sin(angle));
             }
         glEnd();
@@ -529,10 +548,12 @@ static void draw_obstacle(int orientation, int height)
 
 static void draw_obstacle_pair(float zpos, int random_placement_param, int additional_random_param)
 {
+    /* Crta se donja prepreka */
     glPushMatrix();
         glTranslatef(0, OBSTACLE_LOWER_YPOS, zpos);
         draw_obstacle(1, OBSTACLE_HEIGHT - random_placement_param - additional_random_param);
     glPopMatrix();
+    /* Crta se gornja prepreka */
     glPushMatrix();
         glTranslatef(0, OBSTACLE_UPPER_YPOS, zpos);
         glRotatef(180, 1, 0, 0);
@@ -557,7 +578,7 @@ static void draw_background_image(void)
     /* Ukljucuju se teksture */
     glEnable(GL_TEXTURE_2D);
 
-    /* Bajnduje se tekstura za pozadinu ili za pocetni ekran */
+    /* Bajnduje se odgovarajuca teksutra na osnovu flegova */
     if(show_start_screen)
         glBindTexture(GL_TEXTURE_2D, texture_id[1]);
     else if(show_end_screen)
@@ -565,7 +586,7 @@ static void draw_background_image(void)
     else
         glBindTexture(GL_TEXTURE_2D, texture_id[0]);
 
-    /* Crta se poligon preko celog ekrana */
+    /* Crta se teksturisani poligon preko celog ekrana */
     glColor3f(0, 0, 0);
     glBegin(GL_TRIANGLE_FAN);
         glTexCoord2f(1, 1);
@@ -581,19 +602,24 @@ static void draw_background_image(void)
         glVertex2f(0, 1);
     glEnd();
 
-    /* Posle crtanja pozadinske slike, pali se osvetljenje i unbajnduje se tekstura */
+    /* Posle crtanja pozadinske slike, unbajnduje se tekstura, pali se osvetljenj i gasi se rad sa teksturama */
     glBindTexture(GL_TEXTURE_2D, 0);
     glEnable(GL_LIGHTING);
     glDisable(GL_TEXTURE_2D);
 }
 
-static void draw_text(char* text, float posx, float posy, float R, float G, float B)
+static void draw_text(char* text, float posx, float posy)
 {
-    int i;
+    int i; 
+    /* Gasi se osvetljenje da ne utice na crtanje teksta */
     glDisable(GL_LIGHTING);
-    glColor3f(R, G, B);
+    /* Postavlja se boja na belu */
+    glColor3f(1, 1, 1);
+    /* Postavlja se pozicija gde ce da se bitmapa */
     glRasterPos3f(0, posy, -posx);
+    /* Crta se slovo po slovo prosledjeni string */
     for (i = 0; i < strlen(text); i++)
         glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, text[i]);
+    /* Opet se pali osvetljenje */
     glEnable(GL_LIGHTING);
 }
