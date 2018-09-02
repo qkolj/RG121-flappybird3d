@@ -303,6 +303,10 @@ static void on_timer(int value)
         /* Azurira se parametar animacije krila u odgovarajucem smeru */
         player_wing_anim_param += player_wing_ind * 24;
 
+		/* Obrce se smer promene paramera animacije krila kada se dodje do odgovarajuceg gornjeg ili donjeg ugla */
+		if(player_wing_anim_param >= 48 || player_wing_anim_param <= -48)
+    		player_wing_ind = -player_wing_ind;
+
         /* Azurira se pozicija na Y osi igraca tako sto konstantno pada za 0.3 a uvecava se za vrednost trenutnog bafera */
         player_ypos = player_ypos - 0.3f + player_yinc;
         if(player_yinc > 0)
@@ -458,10 +462,6 @@ static void draw_player(void)
     
     /* Crtanje belih animiranih krila: */
     glColor3f(1, 1, 1);
-    /* Obrce se smer promene paramera animacije krila kada se dodje do odgovarajuceg gornjeg ili donjeg ugla */
-    if(player_wing_anim_param >= 30 || player_wing_anim_param <= -30)
-    	player_wing_ind = -player_wing_ind;
-
     /* Crta se desno krilo */
     glPushMatrix();
     	glTranslatef(0.5, player_ypos, 0.2);
