@@ -1,5 +1,7 @@
-# RG121-flappybird3d
+# RG121-FlappyBird3D
 **FlappyBird3D**: A 3D clone of popular mobile game written in C with OpenGL and GLUT.
+
+![Game screenshot](https://i.imgur.com/rq5FfG2.png)
 
 ## Build instructions
 Running `make` from the project directory will build the project. After building is done, execute `./flappybird3D` to run the game.
